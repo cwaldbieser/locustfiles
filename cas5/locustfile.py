@@ -51,23 +51,27 @@ class CASTaskSet(TaskSet):
         }
         response = client.post("/cas/login", data=data)
         lifetime_bins = []
+        lifetime_bins.extend([60]*2)
         lifetime_bins.extend([600]*1)
-        lifetime_bins.extend([3600]*2)
-        lifetime_bins.extend([3600*8]*7)
         seconds = random.choice(lifetime_bins) 
         self.expiration = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
+        print("Locust created with username '{0}'.  Expires in {1} seconds.".format(
+            user, seconds))
 
     @task
     def authenticate_to_service(self):
         if self.expiration is None:
+            print("Recycling locust ...")
             self.initialize()
             return
         if datetime.datetime.now() >= self.expiration:
+            print("Locust is expired.")
             self.logout()  
             self.initialize()
             return
         service = '''https://badges.stage.lafayette.edu/'''
         client = self.client
+        print("Obtaining service ticket ...")
         with client.get("/cas/login", catch_response=True, params={'service': service}, allow_redirects=False) as response:
             if response.status_code in (301, 302):
                 response.success()
@@ -79,14 +83,19 @@ class CASTaskSet(TaskSet):
         q = p.query
         qs = parse_qs(q)
         ticket = qs['ticket'] 
-        response = client.get("/cas/serviceValidate", params={'service': service, 'ticket': ticket})    
+        print("Validating service ticket ...")
+        response = client.get(
+            "/cas/serviceValidate", 
+            params={'service': service, 'ticket': ticket}, 
+            name="/cas/serviceValidate?ticket=[ticket]")    
 
     def logout(self):
         """
         Logout.  This locust should die afterwards."
         """
-        client = self.client()
+        client = self.client
         client.get("/cas/logout")
+        print("Logged out of SSO.")
 
 
 def load_creds():
