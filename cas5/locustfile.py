@@ -6,6 +6,7 @@ import datetime
 import os
 import random
 import re
+import string
 from urlparse import urlparse, parse_qs
 from locust import HttpLocust, TaskSet, task
 from locust.exception import StopLocust
@@ -13,6 +14,7 @@ from locust.exception import StopLocust
 class CASTaskSet(TaskSet):
     execution_pat = re.compile(r'<input type="hidden" name="execution" value="([^"]+)"')
     eventid_pat = re.compile(r'<input type="hidden" name="_eventId" value="([^"]+)"')
+    badpasswd_freq = 0.01
 
     def on_start(self):
         """
@@ -42,6 +44,10 @@ class CASTaskSet(TaskSet):
         creds = random.choice(self.locust.creds)
         user = creds[0]
         passwd = creds[1]
+        if self.badpasswd_freq >= random.random():
+            passwd = passwd[:-1]
+            self.simulate_badpasswd(user, passwd, execution, event_id)
+            return
         data = {
             "username": user,
             "password": passwd,
@@ -57,6 +63,27 @@ class CASTaskSet(TaskSet):
         self.expiration = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
         print("Locust created with username '{0}'.  Expires in {1} seconds.".format(
             user, seconds))
+
+    def simulate_badpasswd(self, user, passwd, execution, event_id):
+        """
+        Simulate fat-fingering the password.
+        """
+        client = self.client
+        data = {
+            "username": user,
+            "password": passwd,
+            "execution": execution,
+            "_eventId": event_id,
+            "geolocation": "",
+        }
+        with client.post("/cas/login", catch_response=True, data=data) as response:
+            if response.status_code == 401:
+                response.success()
+                print("Simulated password mis-entry.")
+            else:
+                print("Unexpected successful authentication!")
+                response.failure("Got status code {0} when 401 was expected!".format(response.status_code))
+        
 
     @task
     def authenticate_to_service(self):
@@ -77,7 +104,7 @@ class CASTaskSet(TaskSet):
                 response.success()
                 location = response.headers['Location']
             else:
-                response.failure()
+                response.failure("Got status code {0} while obtaining ST.".format(response.status_code))
                 return
         p = urlparse(location)
         q = p.query
@@ -110,15 +137,16 @@ def load_creds():
         reader = csv.reader(f)        
         for row in reader:
             creds.append((row[0], row[1]))
-    print("Creds:\n{0}".format(creds))
     return creds
 
 
 class CASLocust(HttpLocust):
     task_set = CASTaskSet
     host = 'https://cas.stage.lafayette.edu'
-    min_wait = 5000
-    max_wait = 15000
+    second = 1000
+    minute = 60 * 1000
+    min_wait = 30 * second
+    max_wait = 15 * minute
     creds = load_creds()
 
 
