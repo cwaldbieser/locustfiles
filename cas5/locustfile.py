@@ -57,9 +57,14 @@ class CASTaskSet(TaskSet):
         }
         response = client.post("/cas/login", data=data)
         lifetime_bins = []
-        lifetime_bins.extend([60]*9)
-        lifetime_bins.extend([600]*1)
+        minute = 60
+        hour = 3600
+        lifetime_bins.extend([60]*7)
+        lifetime_bins.extend([5*minute]*2)
+        lifetime_bins.extend([2*hour]*1)
         seconds = random.choice(lifetime_bins) 
+        wiggliness = random.uniform(0.85, 1.15)
+        seconds = int(seconds * wiggliness)
         self.expiration = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
         print("Locust created with username '{0}'.  Expires in {1} seconds.".format(
             user, seconds))
