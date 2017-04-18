@@ -57,7 +57,7 @@ class CASTaskSet(TaskSet):
         }
         response = client.post("/cas/login", data=data)
         lifetime_bins = []
-        lifetime_bins.extend([60]*2)
+        lifetime_bins.extend([60]*9)
         lifetime_bins.extend([600]*1)
         seconds = random.choice(lifetime_bins) 
         self.expiration = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
@@ -144,9 +144,8 @@ class CASLocust(HttpLocust):
     task_set = CASTaskSet
     host = 'https://cas.stage.lafayette.edu'
     second = 1000
-    minute = 60 * 1000
-    min_wait = 30 * second
-    max_wait = 15 * minute
+    min_wait = 5 * second
+    max_wait = 15 * second
     creds = load_creds()
 
 
