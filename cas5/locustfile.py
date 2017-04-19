@@ -11,23 +11,50 @@ from urlparse import urlparse, parse_qs
 from locust import HttpLocust, TaskSet, task
 from locust.exception import StopLocust
 
+
 class CASTaskSet(TaskSet):
     execution_pat = re.compile(r'<input type="hidden" name="execution" value="([^"]+)"')
     eventid_pat = re.compile(r'<input type="hidden" name="_eventId" value="([^"]+)"')
     badpasswd_freq = 0.01
+    logout_url_freq = 0.25
 
     def on_start(self):
         """
         Start a new session.
         """
         self.initialize()
+        self.reset()
 
     def initialize(self):
         """
-        Login, obtain a TGT.
+        Initialize parameters for locust that don't change when reset.
         """
         print("Initializing locust ...")
-        self.expiration = None
+        self.is_authenticated = False
+        lifetime_bins = []
+        minute = 60
+        hour = 3600
+        lifetime_bins.extend([60]*7)
+        lifetime_bins.extend([5*minute]*2)
+        lifetime_bins.extend([2*hour]*1)
+        seconds = random.choice(lifetime_bins) 
+        self.base_lifetime = seconds
+
+    def reset(self):
+        self.is_authenticated = False
+        self.login()
+        wiggliness = random.uniform(0.85, 1.15)
+        seconds = int(self.base_lifetime * wiggliness)
+        self.expiration = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
+        print("Locust created.  Expires in {0} seconds.".format(seconds))
+
+    def login(self):
+        """
+        Login, obtain TGT.
+        Simulates a bad password `badpasswd_freq` percent of the time.
+        Sets self.is_authenticated if TGT is obtained. 
+        """
+        print("Authenticating ...")
         client = self.client
         with client.get("/cas/login", catch_response=True) as response:
             if response.status_code == 404:
@@ -56,18 +83,8 @@ class CASTaskSet(TaskSet):
             "geolocation": "",
         }
         response = client.post("/cas/login", data=data)
-        lifetime_bins = []
-        minute = 60
-        hour = 3600
-        lifetime_bins.extend([60]*7)
-        lifetime_bins.extend([5*minute]*2)
-        lifetime_bins.extend([2*hour]*1)
-        seconds = random.choice(lifetime_bins) 
-        wiggliness = random.uniform(0.85, 1.15)
-        seconds = int(seconds * wiggliness)
-        self.expiration = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
-        print("Locust created with username '{0}'.  Expires in {1} seconds.".format(
-            user, seconds))
+        if 'TGC' in client.cookies.keys():
+            self.is_authenticated = True
 
     def simulate_badpasswd(self, user, passwd, execution, event_id):
         """
@@ -92,14 +109,14 @@ class CASTaskSet(TaskSet):
 
     @task
     def authenticate_to_service(self):
-        if self.expiration is None:
+        if not self.is_authenticated:
             print("Recycling locust ...")
-            self.initialize()
+            self.reset()
             return
         if datetime.datetime.now() >= self.expiration:
             print("Locust is expired.")
-            self.logout()  
-            self.initialize()
+            self.expire()  
+            self.reset()
             return
         service = '''https://badges.stage.lafayette.edu/'''
         client = self.client
@@ -121,9 +138,20 @@ class CASTaskSet(TaskSet):
             params={'service': service, 'ticket': ticket}, 
             name="/cas/serviceValidate?ticket=[ticket]")    
 
+    def expire(self):
+        """
+        Logout, or simulate just closing the browser window.
+        """
+        self.is_authenticated = False
+        if self.logout_url_freq >= random.random():
+            self.logout()
+        else: 
+            self.client.cookies.clear()
+
     def logout(self):
         """
-        Logout.  This locust should die afterwards."
+        Logout.  
+        This locust should be reset as a new hatchling."
         """
         client = self.client
         client.get("/cas/logout")
