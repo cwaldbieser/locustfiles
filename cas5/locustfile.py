@@ -7,9 +7,11 @@ import os
 import random
 import re
 import string
-from urlparse import urlparse, parse_qs
+#from urlparse import urlparse, parse_qs
 from locust import HttpLocust, TaskSet, task
 from locust.exception import StopLocust
+import six
+from six.moves.urllib.parse import urlparse, parse_qs
 
 
 class CASTaskSet(TaskSet):
@@ -59,7 +61,7 @@ class CASTaskSet(TaskSet):
         with client.get("/cas/login", catch_response=True) as response:
             if response.status_code == 404:
                 response.success()
-            content = response.content
+            content = response.content.decode('utf-8')
         m = self.execution_pat.search(content)
         if m is None:
             return

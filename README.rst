@@ -3,7 +3,7 @@ Locust Files
 ============
 
 --------------
-CAS v4  Locust
+CAS v5  Locust
 --------------
 
 .. code-block:: bash
