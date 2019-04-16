@@ -7,7 +7,6 @@ import os
 import random
 import re
 import string
-#from urlparse import urlparse, parse_qs
 from locust import HttpLocust, TaskSet, task
 from locust.exception import StopLocust
 import six
