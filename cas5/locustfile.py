@@ -170,6 +170,8 @@ def load_creds():
     with open(credpath, "r") as f:
         reader = csv.reader(f)        
         for row in reader:
+            if len(row) != 2:
+                continue
             creds.append((row[0], row[1]))
     return creds
 
