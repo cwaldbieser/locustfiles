@@ -134,10 +134,9 @@ class CASTaskSet(TaskSet):
         qs = parse_qs(q)
         ticket = qs['ticket'] 
         print("Validating service ticket ...")
-        response = client.get(
-            "/cas/serviceValidate", 
-            params={'service': service, 'ticket': ticket}, 
-            name="/cas/serviceValidate?ticket=[ticket]")    
+        with client.get( "/cas/serviceValidate", params={'service': service, 'ticket': ticket}, name="/cas/serviceValidate?ticket=[ticket]") as response:
+            if response.status_code < 200 or response.status_code > 299:
+                response.failure("Got status code {} while validating ST.".format(response.status_code))
 
     def expire(self):
         """
