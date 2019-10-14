@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from __future__ import print_function
+import configparser
 import csv
 import datetime
 import os
@@ -35,9 +36,11 @@ class CASTaskSet(TaskSet):
         lifetime_bins = []
         minute = 60
         hour = 3600
-        lifetime_bins.extend([60]*7)
-        lifetime_bins.extend([5*minute]*2)
-        lifetime_bins.extend([2*hour]*1)
+        lifetime_ratios = (7, 2, 1)
+        for ratio, duration in zip(lifetime_ratios, (60, 5 * minute, 2 * hour)):
+            if ratio > 0:
+                lifetime_bins.extend([duration] * ratio)
+        assert len(lifetime_bins) > 0, "Lifetime ratios resulted in no lifetime bins!"
         seconds = random.choice(lifetime_bins) 
         self.base_lifetime = seconds
 
@@ -173,7 +176,6 @@ def load_creds():
                 continue
             creds.append((row[0], row[1]))
     return creds
-
 
 class CASLocust(HttpLocust):
     task_set = CASTaskSet
